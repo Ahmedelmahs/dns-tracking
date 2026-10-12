@@ -1,0 +1,59 @@
+name: Mirror Complete Archive
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror All Archive Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install requests
+          python -c "
+          import requests, subprocess, os
+
+          src_repo = 'wangmm001/dns-tracking'
+          dest_repo = 'Ahmedelmahs/dns-tracking'
+          token = os.environ['GH_TOKEN']
+          headers = {'Authorization': f'token {token}', 'Accept': 'application/vnd.github.v3+json'}
+
+          # Fetch all releases
+          url = f'https://api.github.com/repos/{src_repo}/releases?per_page=100'
+          releases = []
+          while url:
+              r = requests.get(url)
+              if r.status_code != 200: break
+              releases.extend(r.json())
+              url = r.links.get('next', {}).get('url')
+
+          snaps = [rel for rel in releases if rel.get('tag_name', '').startswith('snap-')]
+          print(f'Total snap releases found: {len(snaps)}')
+
+          for rel in reversed(snaps):
+              tag = rel['tag_name']
+              name = rel.get('name', tag)
+              print(f'\n=== Processing {tag} ===')
+              
+              # Create release on dest repo if not exists
+              cr_url = f'https://api.github.com/repos/{dest_repo}/releases'
+              cr_data = {'tag_name': tag, 'name': name, 'body': f'Mirrored archive for {tag}'}
+              res_cr = requests.post(cr_url, headers=headers, json=cr_data)
+              
+              for asset in rel.get('assets', []):
+                  aname = asset['name']
+                  if aname.endswith('.parquet') and ('domains' in aname or 'fqdn' in aname):
+                      d_url = asset['browser_download_url']
+                      print(f'  [+] Downloading {aname}...')
+                      subprocess.run(['curl', '-sSL', d_url, '-o', aname], check=True)
+                      print(f'  [+] Uploading {aname} to {tag}...')
+                      subprocess.run(['gh', 'release', 'upload', tag, aname, '--clobber', '-R', dest_repo], check=True)
+                      if os.path.exists(aname): os.remove(aname)
+
+          print('\n🎉 All historical releases mirrored successfully into your repository!')
+          "
