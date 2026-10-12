@@ -256,6 +256,7 @@ def main():
 
     conf = {
         'bootstrap.servers': BROKER,
+        'broker.address.family': 'v4',
         # Unique group per shard so each shard gets its own broker-side fetch quota.
         # We use assign()+seek() so we DON'T commit offsets; group_id here is just a label.
         'group.id': args.group,
