@@ -114,6 +114,7 @@ def main():
 
     conf = {
         'bootstrap.servers': BROKER,
+        'broker.address.family': 'v4',
         'group.id': args.group,
         'enable.auto.commit': False,
         'fetch.min.bytes': 1024*1024,
